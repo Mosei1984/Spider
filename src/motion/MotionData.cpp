@@ -346,12 +346,6 @@ int getServoOffset(int iServo) {
     return 0;
 }
 
-void setAllServoOffsets(int offsets[]) {
-    for (int i = 0; i < ALLSERVOS; i++) {
-        Servo_Offset[i] = offsets[i];
-    }
-}
-
 void resetServoOffsets() {
     for (int i = 0; i < ALLSERVOS; i++) {
         Servo_Offset[i] = 0;

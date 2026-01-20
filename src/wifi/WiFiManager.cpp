@@ -69,7 +69,3 @@ void WiFiManager::startAccessPoint() {
 IPAddress WiFiManager::getIP() const {
     return _isStation ? WiFi.localIP() : WiFi.softAPIP();
 }
-
-String WiFiManager::getSSID() const {
-    return _isStation ? WiFi.SSID() : String(_config.apSsid);
-}

@@ -25,13 +25,9 @@ public:
     
     // Aktueller Modus
     bool isStationMode() const { return _isStation; }
-    bool isAPMode() const { return !_isStation; }
     
     // IP-Adresse
     IPAddress getIP() const;
-    
-    // SSID des verbundenen/erstellten Netzwerks
-    String getSSID() const;
 
 private:
     bool connectStation();

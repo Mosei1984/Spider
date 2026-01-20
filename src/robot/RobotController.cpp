@@ -161,41 +161,10 @@ void RobotController::processQueue() {
     }
 }
 
-bool RobotController::isBusy() {
-    return continuousMode;
-}
-
-bool RobotController::isContinuousActive() {
-    return continuousMode && !stopAfterSequence;
-}
-
-String RobotController::getStatus() {
-    String json = "{";
-    json += "\"running\":" + String(motion_is_active() ? "true" : "false") + ",";
-    json += "\"continuous\":" + String(continuousMode ? "true" : "false") + ",";
-    json += "\"currentCmd\":\"" + String(getCommandName(currentCmd)) + "\",";
-    json += "\"terrain\":\"" + String(getTerrainModeName()) + "\",";
-    json += "\"terrainBlend\":" + String(terrainBlendCurrent) + ",";
-    json += "\"offsets\":[";
-    for (int i = 0; i < ALLSERVOS; i++) {
-        if (i > 0) json += ",";
-        json += String(Servo_Offset[i]);
-    }
-    json += "],";
-    json += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
-    json += "\"uptime\":" + String(millis());
-    json += "}";
-    return json;
-}
-
 int RobotController::getServoOffset(int index) {
     return ::getServoOffset(index);
 }
 
 void RobotController::setServoOffset(int index, int value) {
     ::setServoOffset(index, value);
-}
-
-void RobotController::resetServoOffsets() {
-    ::resetServoOffsets();
 }

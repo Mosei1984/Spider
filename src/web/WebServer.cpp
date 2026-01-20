@@ -117,16 +117,6 @@ void handleWebSocket(AsyncWebSocket *server, AsyncWebSocketClient *client,
     }
 }
 
-void broadcastStatus() {
-    JsonDocument doc;
-    doc["type"] = "status";
-    doc["connected"] = true;
-    
-    String output;
-    serializeJson(doc, output);
-    ws.textAll(output);
-}
-
 void broadcastTerrainStatus() {
     JsonDocument doc;
     doc["type"] = "terrain";

@@ -75,7 +75,6 @@ int getSpeed();
 // Servo Offset Funktionen
 void setServoOffset(int iServo, int offset);
 int getServoOffset(int iServo);
-void setAllServoOffsets(int offsets[]);
 void resetServoOffsets();
 bool saveOffsetsToFile();
 bool loadOffsetsFromFile();

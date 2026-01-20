@@ -40,15 +40,9 @@ public:
     void requestStop();    // Stoppt nach aktueller Sequenz
     void forceStop();      // Sofortiger Stop
     
-    // Status
-    bool isBusy();
-    bool isContinuousActive();
-    String getStatus();
-    
     // Servo Offsets
     int getServoOffset(int index);
     void setServoOffset(int index, int value);
-    void resetServoOffsets();
 
 private:
     volatile MotionCmd currentCmd;
