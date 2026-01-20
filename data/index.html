@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Spider Control</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media (min-width: 700px) {
+            .main-layout {
+                grid-template-columns: 1fr 1fr;
+            }
+            .panel {
+                background: rgba(0,0,0,0.2);
+                border-radius: 12px;
+                padding: 15px;
+            }
+            h2 { margin-top: 0; }
+        }
+        @media (min-width: 1000px) {
+            .container { max-width: 1100px; }
+            .main-layout { grid-template-columns: 1fr 1fr 1fr; }
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        .status-dot.connected {
+            background: #44ff44;
+            box-shadow: 0 0 8px #44ff44;
+        }
+        .status-text {
+            font-size: 14px;
+        }
+        h2 {
+            font-size: 16px;
+            margin: 15px 0 10px;
+            text-align: center;
+            color: #8888ff;
+        }
+        .btn {
+            min-height: 44px;
+            min-width: 44px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            user-select: none;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            max-width: 280px;
+            margin: 0 auto;
+        }
+        .dpad .btn {
+            height: 70px;
+            background: linear-gradient(145deg, #2d2d5a, #1f1f40);
+            color: #fff;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        .dpad .btn:active {
+            background: linear-gradient(145deg, #4040a0, #3030a0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+        .dpad .empty {
+            background: transparent;
+            box-shadow: none;
+        }
+        .stop-btn {
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(145deg, #cc2020, #aa1010);
+            color: #fff;
+            font-size: 20px;
+            margin: 15px 0;
+            box-shadow: 0 4px 12px rgba(200,0,0,0.4);
+        }
+        .stop-btn:active {
+            background: linear-gradient(145deg, #ff3030, #dd2020);
+        }
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 6px;
+            background: linear-gradient(145deg, #2a4a6a, #1a3a5a);
+            color: #fff;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            min-height: 70px;
+        }
+        .action-btn .emote {
+            font-size: 28px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .action-btn .label {
+            font-size: 10px;
+            opacity: 0.85;
+        }
+        .action-btn:active {
+            background: linear-gradient(145deg, #3a6a9a, #2a5a8a);
+        }
+        .calibration-panel {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .slider-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .slider-label {
+            width: 50px;
+            font-size: 12px;
+            color: #aaa;
+        }
+        .slider-value {
+            width: 35px;
+            text-align: right;
+            font-size: 12px;
+            color: #8888ff;
+        }
+        input[type="range"] {
+            flex: 1;
+            height: 30px;
+            margin: 0 8px;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(145deg, #6060c0, #4040a0);
+            border-radius: 50%;
+            margin-top: -10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        input[type="range"]::-moz-range-track {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(145deg, #6060c0, #4040a0);
+            border-radius: 50%;
+            border: none;
+        }
+        .calib-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .calib-btn {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(145deg, #3a5a3a, #2a4a2a);
+            color: #fff;
+        }
+        .calib-btn.reset {
+            background: linear-gradient(145deg, #5a4a3a, #4a3a2a);
+        }
+        .calib-btn:active {
+            opacity: 0.8;
+        }
+        .terrain-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .terrain-btn {
+            flex: 1;
+            padding: 12px 8px;
+            background: linear-gradient(145deg, #3a3a5a, #2a2a4a);
+            color: #fff;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+        .terrain-btn.active {
+            background: linear-gradient(145deg, #5a8a5a, #4a7a4a);
+            box-shadow: 0 0 10px rgba(100,200,100,0.4);
+        }
+        .terrain-btn:active {
+            opacity: 0.8;
+        }
+        .calib-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        @media (min-width: 420px) {
+          .calib-grid { grid-template-columns: 1fr 1fr; }
+        }
+        .leg-card {
+          background: rgba(0,0,0,0.25);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 12px;
+          padding: 10px;
+        }
+        .leg-title {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .leg-title .name { font-size: 13px; font-weight: 700; color: #c6c6ff; }
+        .leg-title .abbr { font-size: 12px; color: #9aa; }
+        .servo-row {
+          display: grid;
+          grid-template-columns: 92px 1fr 62px;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 0;
+        }
+        .servo-label { display: flex; flex-direction: column; gap: 2px; }
+        .servo-label .joint { font-size: 12px; color: #e0e0e0; font-weight: 600; }
+        .servo-label .pin { font-size: 11px; color: #9a9a9a; }
+        .calib-number {
+          width: 62px;
+          height: 34px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(0,0,0,0.25);
+          color: #8888ff;
+          font-size: 13px;
+          text-align: right;
+          padding: 0 8px;
+          outline: none;
+        }
+        .calib-number:focus {
+          border-color: rgba(136,136,255,0.6);
+          box-shadow: 0 0 0 2px rgba(136,136,255,0.15);
+        }
+        .servo-row input[type="range"] { margin: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">Getrennt</span>
+        </div>
+
+        <div class="main-layout">
+            <!-- Movement Panel -->
+            <div class="panel">
+                <h2>Bewegung</h2>
+                <div class="dpad">
+                    <button class="btn" data-cmd="turnLeft">↶</button>
+                    <button class="btn" data-cmd="forward">▲</button>
+                    <button class="btn" data-cmd="turnRight">↷</button>
+                    <button class="btn" data-cmd="left">◀</button>
+                    <div class="btn empty"></div>
+                    <button class="btn" data-cmd="right">▶</button>
+                    <div class="btn empty"></div>
+                    <button class="btn" data-cmd="backward">▼</button>
+                    <div class="btn empty"></div>
+                </div>
+                <button class="btn stop-btn" id="stopBtn">⬛ STOP</button>
+            </div>
+
+            <!-- Actions Panel -->
+            <div class="panel">
+                <h2>Aktionen</h2>
+                <div class="action-grid">
+                    <button class="btn action-btn" data-cmd="standby"><span class="emote">🧍</span><span class="label">Stehen</span></button>
+                    <button class="btn action-btn" data-cmd="sleep"><span class="emote">😴</span><span class="label">Schlafen</span></button>
+                    <button class="btn action-btn" data-cmd="lie"><span class="emote">🛏️</span><span class="label">Hinlegen</span></button>
+                    <button class="btn action-btn" data-cmd="hello"><span class="emote">👋</span><span class="label">Winken</span></button>
+                    <button class="btn action-btn" data-cmd="pushup"><span class="emote">💪</span><span class="label">Liegestütz</span></button>
+                    <button class="btn action-btn" data-cmd="fighting"><span class="emote">🥊</span><span class="label">Kämpfen</span></button>
+                    <button class="btn action-btn" data-cmd="dance1"><span class="emote">💃</span><span class="label">Tanz 1</span></button>
+                    <button class="btn action-btn" data-cmd="dance2"><span class="emote">🕺</span><span class="label">Tanz 2</span></button>
+                    <button class="btn action-btn" data-cmd="dance3"><span class="emote">🎉</span><span class="label">Tanz 3</span></button>
+                </div>
+
+                <h2>Gelände</h2>
+                <div class="terrain-toggle">
+                    <button class="btn terrain-btn" data-terrain="normal" id="terrainNormal">⬜ Flach</button>
+                    <button class="btn terrain-btn" data-terrain="uphill" id="terrainUphill">⬆ Bergauf</button>
+                    <button class="btn terrain-btn" data-terrain="downhill" id="terrainDownhill">⬇ Bergab</button>
+                </div>
+
+                <h2>Geschwindigkeit</h2>
+                <div class="slider-row">
+                    <span class="slider-label">Langsam</span>
+                    <input type="range" min="10" max="100" value="80" id="speedSlider">
+                    <span class="slider-value" id="speedVal">Schnell</span>
+                </div>
+            </div>
+
+            <!-- Calibration Panel -->
+            <div class="panel calibration-panel">
+                <h2 style="margin-top:0">Kalibrierung</h2>
+                <div id="sliders"></div>
+                <div class="calib-buttons">
+                    <button class="btn calib-btn" id="loadCalib">📥 Laden</button>
+                    <button class="btn calib-btn" id="saveCalib">💾 Speichern</button>
+                    <button class="btn calib-btn reset" id="resetCalib">↩ Zurücksetzen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const SERVOS = [
+                { idx: 0, pin: 'G14', leg: 'UR', legName: 'Vorne-Rechts', joint: 'Klaue' },
+                { idx: 1, pin: 'G12', leg: 'UR', legName: 'Vorne-Rechts', joint: 'Schulter' },
+                { idx: 2, pin: 'G13', leg: 'LR', legName: 'Hinten-Rechts', joint: 'Schulter' },
+                { idx: 3, pin: 'G15', leg: 'LR', legName: 'Hinten-Rechts', joint: 'Klaue' },
+                { idx: 4, pin: 'G16', leg: 'UL', legName: 'Vorne-Links', joint: 'Klaue' },
+                { idx: 5, pin: 'G5',  leg: 'UL', legName: 'Vorne-Links', joint: 'Schulter' },
+                { idx: 6, pin: 'G4',  leg: 'LL', legName: 'Hinten-Links', joint: 'Schulter' },
+                { idx: 7, pin: 'G2',  leg: 'LL', legName: 'Hinten-Links', joint: 'Klaue' }
+            ];
+            const LEGS = ['UR', 'LR', 'UL', 'LL'];
+            const MIN_SEND_INTERVAL = 50;
+            
+            let ws = null;
+            let connected = false;
+            let lastSendTime = 0;
+            let offsets = new Array(8).fill(0);
+            let reconnectTimeout = null;
+
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const slidersContainer = document.getElementById('sliders');
+
+            function setOffset(i, val) {
+                val = Math.max(-30, Math.min(30, parseInt(val) || 0));
+                offsets[i] = val;
+                document.getElementById('range' + i).value = val;
+                document.getElementById('num' + i).value = val;
+            }
+
+            // Create leg cards
+            slidersContainer.className = 'calib-grid';
+            LEGS.forEach(leg => {
+                const servos = SERVOS.filter(s => s.leg === leg);
+                const legName = servos[0].legName;
+                const card = document.createElement('div');
+                card.className = 'leg-card';
+                card.innerHTML = `<div class="leg-title"><span class="name">${legName}</span><span class="abbr">${leg}</span></div>`;
+                servos.forEach(s => {
+                    const row = document.createElement('div');
+                    row.className = 'servo-row';
+                    row.innerHTML = `
+                        <div class="servo-label"><span class="joint">${s.joint}</span><span class="pin">${s.pin}</span></div>
+                        <input type="range" id="range${s.idx}" min="-30" max="30" value="0">
+                        <input type="number" id="num${s.idx}" class="calib-number" min="-30" max="30" value="0">
+                    `;
+                    card.appendChild(row);
+                });
+                slidersContainer.appendChild(card);
+            });
+
+            // Sync slider and number inputs
+            SERVOS.forEach(s => {
+                const range = document.getElementById('range' + s.idx);
+                const num = document.getElementById('num' + s.idx);
+                range.addEventListener('input', () => setOffset(s.idx, range.value));
+                num.addEventListener('input', () => setOffset(s.idx, num.value));
+            });
+
+            function updateStatus(conn) {
+                connected = conn;
+                statusDot.classList.toggle('connected', conn);
+                statusText.textContent = conn ? 'Verbunden' : 'Getrennt';
+            }
+
+            function connect() {
+                if (ws && ws.readyState < 2) return;
+                
+                try {
+                    ws = new WebSocket(`ws://${location.hostname}/ws`);
+                    
+                    ws.onopen = () => {
+                        updateStatus(true);
+                        if (reconnectTimeout) {
+                            clearTimeout(reconnectTimeout);
+                            reconnectTimeout = null;
+                        }
+                    };
+                    
+                    ws.onclose = () => {
+                        updateStatus(false);
+                        scheduleReconnect();
+                    };
+                    
+                    ws.onerror = () => {
+                        updateStatus(false);
+                    };
+                    
+                    ws.onmessage = (e) => {
+                        try {
+                            const data = JSON.parse(e.data);
+                            if (data.offsets && Array.isArray(data.offsets)) {
+                                offsets = data.offsets;
+                                SERVOS.forEach(s => {
+                                    const val = offsets[s.idx] || 0;
+                                    document.getElementById('range' + s.idx).value = val;
+                                    document.getElementById('num' + s.idx).value = val;
+                                });
+                            }
+                            if (data.type === 'terrain' && data.mode) {
+                                updateTerrainButtons(data.mode.toLowerCase());
+                            }
+                        } catch (err) {}
+                    };
+                } catch (err) {
+                    scheduleReconnect();
+                }
+            }
+
+            function scheduleReconnect() {
+                if (!reconnectTimeout) {
+                    reconnectTimeout = setTimeout(() => {
+                        reconnectTimeout = null;
+                        connect();
+                    }, 2000);
+                }
+            }
+
+            function send(msg) {
+                const now = Date.now();
+                if (now - lastSendTime < MIN_SEND_INTERVAL) return false;
+                if (!ws || ws.readyState !== 1) return false;
+                
+                lastSendTime = now;
+                ws.send(JSON.stringify(msg));
+                return true;
+            }
+
+            // Bewegungsbefehle die kontinuierlich laufen sollen
+            const CONTINUOUS_MOVES = ['forward', 'backward', 'left', 'right', 'turnLeft', 'turnRight'];
+            
+            function isContinuousMove(name) {
+                return CONTINUOUS_MOVES.includes(name);
+            }
+
+            function sendCmd(name) {
+                send({ type: 'cmd', name: name });
+            }
+            
+            function sendMoveStart(name) {
+                send({ type: 'moveStart', name: name });
+            }
+            
+            function sendMoveStop() {
+                send({ type: 'moveStop' });
+            }
+
+            function sendStop() {
+                send({ type: 'stop' });
+            }
+
+            function sendOffsets() {
+                send({ type: 'setOffsets', offsets: offsets });
+            }
+
+            function sendSpeed(speed) {
+                send({ type: 'setSpeed', speed: speed });
+            }
+
+            function sendTerrain(mode) {
+                send({ type: 'setTerrain', mode: mode });
+            }
+
+            function updateTerrainButtons(activeMode) {
+                document.querySelectorAll('.terrain-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.terrain === activeMode);
+                });
+            }
+
+            // Speed slider
+            const speedSlider = document.getElementById('speedSlider');
+            const speedVal = document.getElementById('speedVal');
+            
+            speedSlider.addEventListener('input', () => {
+                const v = parseInt(speedSlider.value);
+                speedVal.textContent = v >= 80 ? 'Schnell' : v >= 50 ? 'Mittel' : 'Langsam';
+                sendSpeed(v);
+            });
+
+            // D-pad buttons (kontinuierliche Bewegung)
+            document.querySelectorAll('.dpad [data-cmd]').forEach(btn => {
+                const cmd = btn.dataset.cmd;
+                
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    btn.setPointerCapture(e.pointerId);
+                    sendMoveStart(cmd);
+                });
+                
+                btn.addEventListener('pointerup', (e) => {
+                    e.preventDefault();
+                    sendMoveStop();
+                });
+                
+                btn.addEventListener('pointerleave', (e) => {
+                    e.preventDefault();
+                    sendMoveStop();
+                });
+                
+                btn.addEventListener('pointercancel', (e) => {
+                    e.preventDefault();
+                    sendMoveStop();
+                });
+            });
+            
+            // Action buttons (einmalige Ausführung)
+            document.querySelectorAll('.action-btn[data-cmd]').forEach(btn => {
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    sendCmd(btn.dataset.cmd);
+                });
+            });
+
+            // Stop button
+            document.getElementById('stopBtn').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                sendStop();
+            });
+
+            // Terrain buttons
+            document.querySelectorAll('.terrain-btn').forEach(btn => {
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    const mode = btn.dataset.terrain;
+                    sendTerrain(mode);
+                    updateTerrainButtons(mode);
+                });
+            });
+            updateTerrainButtons('normal'); // Default
+
+            // Calibration buttons
+            document.getElementById('loadCalib').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                send({ type: 'getOffsets' });
+            });
+
+            document.getElementById('saveCalib').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                sendOffsets();
+            });
+
+            document.getElementById('resetCalib').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                SERVOS.forEach(s => setOffset(s.idx, 0));
+            });
+
+            // Prevent context menu on long press
+            document.addEventListener('contextmenu', e => e.preventDefault());
+
+            // Initial connection
+            connect();
+        })();
+    </script>
+</body>
+</html>
