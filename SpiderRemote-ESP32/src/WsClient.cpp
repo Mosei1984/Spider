@@ -70,14 +70,14 @@ void WsClient::sendCmd(const char* name) {
   if (!name) return;
   char buf[96];
   snprintf(buf, sizeof(buf), "{\"type\":\"cmd\",\"name\":\"%s\"}", name);
-  sendRaw(buf);
+  sendImmediate(buf);
 }
 
 void WsClient::sendTerrain(const char* mode) {
   if (!mode) return;
   char buf[96];
   snprintf(buf, sizeof(buf), "{\"type\":\"setTerrain\",\"mode\":\"%s\"}", mode);
-  sendRaw(buf);
+  sendImmediate(buf);
 }
 
 void WsClient::onEventThunk(WStype_t type, uint8_t* payload, size_t length) {

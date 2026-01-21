@@ -9,9 +9,13 @@
 #include "DriveControl.h"
 #include "UiMenu.h"
 #include "DisplayOLED.h"
+#include "MotionInputs.h"
+#include "InputCalib.h"
 
 static WsClient ws;
 static Inputs inputs;
+static MotionInputs motion;
+static InputCalib inputCalib;
 static DriveControl drive;
 
 static Button btnLeft, btnMid, btnRight, btnStop;
@@ -195,10 +199,17 @@ void setup() {
 
   oled.begin(OLED_UPDATE_MS);
 
+  if (motion.begin(Wire)) {
+    Serial.println("[Motion] MPU6050 found");
+  } else {
+    Serial.println("[Motion] MPU6050 not found - MOTION mode disabled");
+  }
+
   connectWifiWithFallback();
   ws.begin(activeHost, SPIDER_PORT, SPIDER_PATH, MIN_SEND_INTERVAL_MS);
 
   inputs.begin(PIN_JOY_X, PIN_JOY_Y, PIN_POT_VMAX, PIN_POT_TURN, ADC_MAX);
+  inputCalib.begin();
 
   drive.begin(&ws);
   uiMenu.begin(&ws);
@@ -222,7 +233,6 @@ void loop() {
     
     if (!isConnected) {
       Serial.println("[WiFi] Lost connection, reconnecting...");
-      // Bei Reconnect: mit Fallback versuchen
       connectWifiWithFallback();
       ws.begin(activeHost, SPIDER_PORT, SPIDER_PATH, MIN_SEND_INTERVAL_MS);
     } else if (!wasConnected && isConnected) {
@@ -238,26 +248,171 @@ void loop() {
   processSerial();
 #endif
 
+  // ===== BUTTON UPDATE =====
   btnLeft.update();
   btnMid.update();
   btnRight.update();
   btnStop.update();
 
-  PressType pStop = btnStop.consume();
-  if (pStop == PressType::Short || pStop == PressType::Long) {
+  // ===== EINMALIG ALLE EVENTS KONSUMIEREN =====
+  PressType evL    = btnLeft.consume();
+  PressType evM    = btnMid.consume();
+  PressType evR    = btnRight.consume();
+  PressType evStop = btnStop.consume();
+
+  // ===== PRIORITÄT 1: STOP BUTTON (höchste Priorität) =====
+  if (evStop != PressType::None) {
     drive.forceStop();
   }
 
-  uiMenu.tick(btnLeft, btnMid, btnRight, uiState);
+  // ===== MOTION CALIBRATION STATE MACHINE =====
+  CalibState motionCalibState = motion.getCalibState();
+  static uint32_t motionDoneTime = 0;
+
+  if (motionCalibState == CalibState::RUNNING) {
+    motion.updateCalibration();
+    oled.tick(ws.connected(), 0, 0, nullptr, uiState,
+              motion.isAvailable(), motion.isCalibrated(),
+              motion.getCalibState(), motion.getCalibProgress());
+    return;
+  }
+
+  if (motionCalibState == CalibState::WAITING) {
+    if (evM != PressType::None) {
+      Serial.println("[Motion] Starting calibration...");
+      motion.updateCalibration();
+    }
+    oled.tick(ws.connected(), 0, 0, nullptr, uiState,
+              motion.isAvailable(), motion.isCalibrated(),
+              CalibState::WAITING, 0);
+    return;
+  }
+
+  if (motionCalibState == CalibState::DONE || motionCalibState == CalibState::FAILED) {
+    if (motionDoneTime == 0) {
+      motionDoneTime = millis();
+      Serial.println(motionCalibState == CalibState::DONE ? "[Motion] Calibrated!" : "[Motion] Calibration failed!");
+    }
+    if (millis() - motionDoneTime < 1500) {
+      oled.tick(ws.connected(), 0, 0, nullptr, uiState,
+                motion.isAvailable(), motion.isCalibrated(),
+                motionCalibState, 100);
+      return;
+    }
+    motionDoneTime = 0;
+    motion.resetCalibState();
+  }
+
+  // ===== INPUT CALIBRATION =====
+  InputCalibStep inputCalibStep = inputCalib.getStep();
+  int rawJoyX, rawJoyY, rawTurn, rawVmax;
+  inputs.readRaw(rawJoyX, rawJoyY, rawTurn, rawVmax);
+
+  if (uiState.mode == UiMode::CALIB) {
+    inputCalib.update(rawJoyX, rawJoyY, rawTurn, rawVmax);
+  }
+
+  // Input-Kalibrierung aktiv (nicht IDLE) - übernimmt Button-Events
+  if (uiState.mode == UiMode::CALIB && inputCalibStep != InputCalibStep::IDLE) {
+    if (inputCalibStep == InputCalibStep::DEADBAND) {
+      if (evL == PressType::Short) inputCalib.adjustDeadband(-1);
+      if (evR == PressType::Short) inputCalib.adjustDeadband(1);
+    }
+    if (evM == PressType::Short) {
+      inputCalib.nextStep();
+    }
+
+    static uint32_t inputCalibDoneTime = 0;
+    InputCalibStep currentStep = inputCalib.getStep();
+    if (currentStep == InputCalibStep::DONE) {
+      if (inputCalibDoneTime == 0) inputCalibDoneTime = millis();
+      if (millis() - inputCalibDoneTime > 1500) {
+        inputCalibDoneTime = 0;
+        inputCalib.nextStep();
+      }
+    } else {
+      inputCalibDoneTime = 0;
+    }
+
+    oled.tick(ws.connected(), 0, 0, nullptr, uiState,
+              motion.isAvailable(), motion.isCalibrated(),
+              CalibState::IDLE, 0,
+              inputCalib.getStep(), inputCalib.getStepText(), inputCalib.getDeadbandPercent());
+    return;
+  }
+
+  // ===== CALIB MODE: Start InputCalibration mit Short Press =====
+  if (uiState.mode == UiMode::CALIB && inputCalibStep == InputCalibStep::IDLE) {
+    if (evM == PressType::Short) {
+      Serial.println("[InputCalib] Starting calibration...");
+      inputCalib.startCalibration();
+      oled.tick(ws.connected(), 0, 0, nullptr, uiState,
+                motion.isAvailable(), motion.isCalibrated(),
+                CalibState::IDLE, 0,
+                inputCalib.getStep(), inputCalib.getStepText(), inputCalib.getDeadbandPercent());
+      return;
+    }
+    // Long press in CALIB -> Mode wechseln (weiter unten durch uiMenu.tick)
+  }
+
+  // ===== UI MENU HANDLING =====
+  // Mode-Wechsel: Long press MID wechselt immer zum nächsten Mode
+  if (evM == PressType::Long) {
+    UiMode oldMode = uiState.mode;
+    
+    if (uiState.mode == UiMode::DRIVE) uiState.mode = UiMode::MOTION;
+    else if (uiState.mode == UiMode::MOTION) uiState.mode = UiMode::CALIB;
+    else if (uiState.mode == UiMode::CALIB) uiState.mode = UiMode::TERRAIN;
+    else if (uiState.mode == UiMode::TERRAIN) uiState.mode = UiMode::ACTION;
+    else uiState.mode = UiMode::DRIVE;
+    
+    Serial.printf("[Menu] Mode: %d -> %d\n", (int)oldMode, (int)uiState.mode);
+    
+    // Beim Verlassen von DRIVE/MOTION: Stop senden
+    if (uiState.mode != UiMode::DRIVE && uiState.mode != UiMode::MOTION) {
+      drive.forceStop();
+    }
+    evM = PressType::None;
+  }
+
+  // ===== MOTION MODE: Short Press startet Gyro-Kalibrierung =====
+  if (uiState.mode == UiMode::MOTION && motion.isAvailable() && !motion.isCalibrated()) {
+    if (evM == PressType::Short) {
+      Serial.println("[Motion] Hold controller level...");
+      motion.startCalibration();
+      return;
+    }
+  }
+
+  // Navigation und Bestätigung an UiMenu delegieren
+  uiMenu.tick(evL, evM, evR, uiState);
+
+  // ===== DRIVE CONTROL =====
+  // Drive nur in DRIVE oder MOTION mode (wenn kalibriert)
+  bool doDrive = (uiState.mode == UiMode::DRIVE) || 
+                 (uiState.mode == UiMode::MOTION && motion.isAvailable() && motion.isCalibrated());
 
 #if SERIAL_CMD_MODE
-  // Skip joystick input when testing via Serial (no hardware)
   InputState in = {SPEED_MIN, 0, 0, 0};
 #else
-  InputState in = inputs.read(DEAD_JOY, DEAD_TURN, SPEED_MIN, SPEED_MAX);
-  drive.tick(in, SPEED_MIN);
+  InputState in = {SPEED_MIN, 0, 0, 0};
+  
+  if (doDrive) {
+    if (uiState.mode == UiMode::MOTION && motion.isAvailable() && motion.isCalibrated()) {
+      int speedMax = inputs.readSpeedPot(SPEED_MIN, SPEED_MAX);
+      in = motion.read(speedMax);
+    } else if (inputCalib.isCalibrated()) {
+      in = inputs.readCalibrated(inputCalib.getData(), SPEED_MIN, SPEED_MAX);
+    } else {
+      in = inputs.read(DEAD_JOY, DEAD_TURN, SPEED_MIN, SPEED_MAX);
+    }
+    drive.tick(in, SPEED_MIN);
+  }
 #endif
 
-  oled.tick(ws.connected(), in.speedMax, drive.currentSpeed(), drive.currentMove(), uiState);
-
+  // ===== DISPLAY UPDATE =====
+  oled.tick(ws.connected(), in.speedMax, drive.currentSpeed(), drive.currentMove(), uiState,
+            motion.isAvailable(), motion.isCalibrated(),
+            CalibState::IDLE, 0,
+            inputCalib.getStep(), inputCalib.getStepText(), inputCalib.getDeadbandPercent());
 }

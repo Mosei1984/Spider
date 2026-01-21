@@ -1,25 +1,13 @@
 #pragma once
 #include <Arduino.h>
+#include "Credentials.h"  // WLAN Credentials (nicht in Git!)
 
 // ========= DEBUG MODE =========
 // Set to false for normal operation with joystick hardware
 // Set to true for testing via Serial Monitor (no hardware needed)
 #define SERIAL_CMD_MODE false
 
-// ========= WLAN Konfiguration (mit Auto-Fallback) =========
-// Versucht zuerst AP-Modus, dann Heimnetzwerk
-
-// Primär: Robot AP-Modus
-static const char* WIFI_AP_SSID   = "QuadBot-E";
-static const char* WIFI_AP_PASS   = "123456";
-static const char* SPIDER_AP_HOST = "192.168.4.1";
-
-// Fallback: Robot im Heimnetzwerk
-static const char* WIFI_HOME_SSID   = "";
-static const char* WIFI_HOME_PASS   = "";
-static const char* SPIDER_HOME_HOST = "10.0.0.11";
-
-// Timeouts
+// ========= WLAN Timeouts =========
 static constexpr uint32_t WIFI_AP_TIMEOUT_MS   = 8000;   // 8s für AP
 static constexpr uint32_t WIFI_HOME_TIMEOUT_MS = 10000;  // 10s für Home
 
@@ -58,6 +46,13 @@ static constexpr uint32_t BTN_LONGPRESS_MS     = 700;
 
 static constexpr int SPEED_MIN = 10;
 static constexpr int SPEED_MAX = 100;
+
+// ========= Motion (MPU6050) =========
+static constexpr float DEAD_TILT        = 0.20f;  // Größere Totzone für Neigung
+static constexpr float DEAD_TURN_MOTION = 0.15f;  // Größere Totzone für Drehung
+static constexpr float TILT_MAX_DEG     = 25.0f;
+static constexpr float TURN_MAX_DPS     = 150.0f;
+static constexpr float MOTION_ALPHA     = 0.98f;
 
 static constexpr uint32_t OLED_UPDATE_MS = 50; // 20 Hz
 

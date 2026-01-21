@@ -3,3 +3,7 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Credentials - NICHT einchecken!
+**/Credentials.h
+!**/Credentials.h.example
