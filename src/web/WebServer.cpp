@@ -28,6 +28,7 @@ void handleWebSocket(AsyncWebSocket *server, AsyncWebSocketClient *client,
         case WS_EVT_CONNECT:
             Serial.printf("[WS] Client #%u connected from %s\n", client->id(), 
                           client->remoteIP().toString().c_str());
+            sendCalibState(client);
             break;
         case WS_EVT_DISCONNECT:
             Serial.printf("[WS] Client #%u disconnected\n", client->id());
@@ -62,18 +63,35 @@ void handleWebSocket(AsyncWebSocket *server, AsyncWebSocketClient *client,
                             Serial.println("[WS] Sofortiger Stop");
                             robotController.forceStop();
                         } else if (strcmp(type, "setOffsets") == 0) {
-                            JsonArray offsets = doc["offsets"];
-                            if (!offsets.isNull()) {
-                                int i = 0;
-                                for (JsonVariant v : offsets) {
-                                    if (i < ALLSERVOS) {
-                                        robotController.setServoOffset(i, v.as<int>());
+                            if (robotController.isCalibrationLocked()) {
+                                JsonDocument errDoc;
+                                errDoc["type"] = "error";
+                                errDoc["message"] = "Calibration locked";
+                                String errOut;
+                                serializeJson(errDoc, errOut);
+                                client->text(errOut);
+                                Serial.println("[WS] setOffsets rejected - locked");
+                            } else {
+                                JsonArray offsets = doc["offsets"];
+                                if (!offsets.isNull()) {
+                                    int i = 0;
+                                    for (JsonVariant v : offsets) {
+                                        if (i < ALLSERVOS) {
+                                            robotController.setServoOffset(i, v.as<int>());
+                                        }
+                                        i++;
                                     }
-                                    i++;
+                                    saveOffsetsToFile();
+                                    broadcastCalibState();
+                                    Serial.println("[WS] Offsets updated and saved");
                                 }
-                                saveOffsetsToFile();
-                                Serial.println("[WS] Offsets updated and saved");
                             }
+                        } else if (strcmp(type, "setCalibLock") == 0) {
+                            bool locked = doc["locked"] | true;
+                            robotController.setCalibrationLocked(locked);
+                            broadcastCalibState();
+                        } else if (strcmp(type, "getCalibState") == 0) {
+                            sendCalibState(client);
                         } else if (strcmp(type, "setSpeed") == 0) {
                             if (doc["speed"].is<int>()) {
                                 int speed = doc["speed"].as<int>();
@@ -126,6 +144,34 @@ void broadcastTerrainStatus() {
     String output;
     serializeJson(doc, output);
     ws.textAll(output);
+}
+
+void broadcastCalibState() {
+    JsonDocument doc;
+    doc["type"] = "calibState";
+    doc["locked"] = robotController.isCalibrationLocked();
+    JsonArray arr = doc["offsets"].to<JsonArray>();
+    for (int i = 0; i < ALLSERVOS; i++) {
+        arr.add(robotController.getServoOffset(i));
+    }
+    
+    String output;
+    serializeJson(doc, output);
+    ws.textAll(output);
+}
+
+void sendCalibState(AsyncWebSocketClient *client) {
+    JsonDocument doc;
+    doc["type"] = "calibState";
+    doc["locked"] = robotController.isCalibrationLocked();
+    JsonArray arr = doc["offsets"].to<JsonArray>();
+    for (int i = 0; i < ALLSERVOS; i++) {
+        arr.add(robotController.getServoOffset(i));
+    }
+    
+    String output;
+    serializeJson(doc, output);
+    client->text(output);
 }
 
 void setupApiRoutes() {
@@ -252,13 +298,6 @@ void setupStaticFileServing() {
 }
 
 void setupWebServer() {
-    if (!LittleFS.begin()) {
-        Serial.println("[FS] LittleFS mount failed!");
-    } else {
-        Serial.println("[FS] LittleFS mounted");
-        loadOffsetsFromFile();
-    }
-
     ws.onEvent(handleWebSocket);
     webServer.addHandler(&ws);
 

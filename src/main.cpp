@@ -1,4 +1,5 @@
 #include <ESP8266WiFi.h>
+#include <LittleFS.h>
 #include "web/WebServer.h"
 #include "robot/RobotController.h"
 #include "wifi/WiFiManager.h"
@@ -18,6 +19,14 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n\n=== Spider Bot ===");
     
+    // LittleFS früh initialisieren für Offsets
+    if (!LittleFS.begin()) {
+        Serial.println("[FS] LittleFS mount failed!");
+    } else {
+        Serial.println("[FS] LittleFS mounted");
+        loadOffsetsFromFile();  // VOR Servo_PROGRAM_Zero!
+    }
+    
     // WiFi konfigurieren
     WiFiConfig wifiConfig = {
         HOME_SSID,      // Heim-WLAN
@@ -25,7 +34,7 @@ void setup() {
         AP_SSID,        // AP-Fallback
         AP_PASSWORD,
         5,              // AP-Kanal
-        15000           // 15s Timeout für STA
+        30000           // 15s Timeout für STA
     };
     wifiManager.setConfig(wifiConfig);
     wifiManager.begin();
@@ -43,8 +52,8 @@ void setup() {
     servo_4.attach(4, SERVOMIN, SERVOMAX);
     servo_2.attach(2, SERVOMIN, SERVOMAX);
     
-    Servo_PROGRAM_Zero();
-    setupWebServer();
+    Servo_PROGRAM_Zero();  // Jetzt mit geladenen Offsets
+    setupWebServer();      // Ohne loadOffsetsFromFile
 }
 
 void loop() {

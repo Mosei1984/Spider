@@ -40,9 +40,17 @@ public:
     void requestStop();    // Stoppt nach aktueller Sequenz
     void forceStop();      // Sofortiger Stop
     
+    // Status
+    bool isMoving() const { return continuousMode || motionRunning; }
+    MotionCmd getCurrentCmd() const { return currentCmd; }
+    
     // Servo Offsets
     int getServoOffset(int index);
-    void setServoOffset(int index, int value);
+    bool setServoOffset(int index, int value);
+    
+    // Calibration Lock
+    bool isCalibrationLocked() const { return calibrationLocked; }
+    void setCalibrationLocked(bool locked);
 
 private:
     volatile MotionCmd currentCmd;
@@ -50,8 +58,11 @@ private:
     volatile bool hasPendingCmd;
     volatile bool continuousMode;
     volatile bool stopAfterSequence;
+    volatile bool motionRunning;  // Motion Engine aktiv
+    volatile bool calibrationLocked;
     
-    void executeCommand(MotionCmd cmd);
+    void startMotionForCmd(MotionCmd cmd);
+    void executeCommandBlocking(MotionCmd cmd);
     bool isContinuousCmd(MotionCmd cmd);
 };
 

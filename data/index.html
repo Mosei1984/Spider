@@ -223,8 +223,18 @@
         .calib-btn.reset {
             background: linear-gradient(145deg, #5a4a3a, #4a3a2a);
         }
+        .calib-btn.lock {
+            background: linear-gradient(145deg, #5a3a3a, #4a2a2a);
+        }
+        .calib-btn.lock.unlocked {
+            background: linear-gradient(145deg, #3a5a3a, #2a4a2a);
+        }
         .calib-btn:active {
             opacity: 0.8;
+        }
+        .calib-btn:disabled, input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         .terrain-toggle {
             display: flex;
@@ -356,9 +366,10 @@
                 <h2 style="margin-top:0">Kalibrierung</h2>
                 <div id="sliders"></div>
                 <div class="calib-buttons">
+                    <button class="btn calib-btn lock" id="lockCalib">🔒 Gesperrt</button>
                     <button class="btn calib-btn" id="loadCalib">📥 Laden</button>
-                    <button class="btn calib-btn" id="saveCalib">💾 Speichern</button>
-                    <button class="btn calib-btn reset" id="resetCalib">↩ Zurücksetzen</button>
+                    <button class="btn calib-btn" id="saveCalib" disabled>💾 Speichern</button>
+                    <button class="btn calib-btn reset" id="resetCalib" disabled>↩ Zurücksetzen</button>
                 </div>
             </div>
         </div>
@@ -384,6 +395,7 @@
             let lastSendTime = 0;
             let offsets = new Array(8).fill(0);
             let reconnectTimeout = null;
+            let calibLocked = true;
 
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
@@ -431,6 +443,29 @@
                 statusText.textContent = conn ? 'Verbunden' : 'Getrennt';
             }
 
+            function updateCalibLockUI(locked) {
+                calibLocked = locked;
+                const lockBtn = document.getElementById('lockCalib');
+                const saveBtn = document.getElementById('saveCalib');
+                const resetBtn = document.getElementById('resetCalib');
+                
+                if (locked) {
+                    lockBtn.textContent = '🔒 Gesperrt';
+                    lockBtn.classList.remove('unlocked');
+                } else {
+                    lockBtn.textContent = '🔓 Entsperrt';
+                    lockBtn.classList.add('unlocked');
+                }
+                
+                // Disable/enable sliders and buttons when locked
+                SERVOS.forEach(s => {
+                    document.getElementById('range' + s.idx).disabled = locked;
+                    document.getElementById('num' + s.idx).disabled = locked;
+                });
+                saveBtn.disabled = locked;
+                resetBtn.disabled = locked;
+            }
+
             function connect() {
                 if (ws && ws.readyState < 2) return;
                 
@@ -457,7 +492,22 @@
                     ws.onmessage = (e) => {
                         try {
                             const data = JSON.parse(e.data);
-                            if (data.offsets && Array.isArray(data.offsets)) {
+                            // Handle calibState (lock status + offsets)
+                            if (data.type === 'calibState') {
+                                if (typeof data.locked === 'boolean') {
+                                    updateCalibLockUI(data.locked);
+                                }
+                                if (data.offsets && Array.isArray(data.offsets)) {
+                                    offsets = data.offsets;
+                                    SERVOS.forEach(s => {
+                                        const val = offsets[s.idx] || 0;
+                                        document.getElementById('range' + s.idx).value = val;
+                                        document.getElementById('num' + s.idx).value = val;
+                                    });
+                                }
+                            }
+                            // Handle standalone offsets response
+                            else if (data.offsets && Array.isArray(data.offsets)) {
                                 offsets = data.offsets;
                                 SERVOS.forEach(s => {
                                     const val = offsets[s.idx] || 0;
@@ -467,6 +517,9 @@
                             }
                             if (data.type === 'terrain' && data.mode) {
                                 updateTerrainButtons(data.mode.toLowerCase());
+                            }
+                            if (data.type === 'error' && data.message) {
+                                console.warn('[WS] Error:', data.message);
                             }
                         } catch (err) {}
                     };
@@ -597,20 +650,28 @@
             updateTerrainButtons('normal'); // Default
 
             // Calibration buttons
+            document.getElementById('lockCalib').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                send({ type: 'setCalibLock', locked: !calibLocked });
+            });
+
             document.getElementById('loadCalib').addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                send({ type: 'getOffsets' });
+                send({ type: 'getCalibState' });
             });
 
             document.getElementById('saveCalib').addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                sendOffsets();
+                if (!calibLocked) sendOffsets();
             });
 
             document.getElementById('resetCalib').addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                SERVOS.forEach(s => setOffset(s.idx, 0));
+                if (!calibLocked) SERVOS.forEach(s => setOffset(s.idx, 0));
             });
+
+            // Initialize lock UI
+            updateCalibLockUI(true);
 
             // Prevent context menu on long press
             document.addEventListener('contextmenu', e => e.preventDefault());

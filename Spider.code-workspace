@@ -1,0 +1,13 @@
+{
+    "folders": [
+        {
+            "path": ".",
+            "name": "Spider (ESP8266)"
+        },
+        {
+            "path": "SpiderRemote-ESP32",
+            "name": "SpiderRemote-ESP32"
+        }
+    ],
+    "settings": {}
+}
