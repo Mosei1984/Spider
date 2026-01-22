@@ -15,6 +15,7 @@ public:
   InputState read(float deadJoy, float deadTurn, int speedMin, int speedMax);
   InputState readCalibrated(const InputCalibData& calib, int speedMin, int speedMax);
   int readSpeedPot(int speedMin, int speedMax);
+  int readSpeedPotRaw(int speedMin, int speedMax);  // Ohne Filter, für Loop-Aufruf
   void readRaw(int& joyX, int& joyY, int& turn, int& vmax);
 
 private:

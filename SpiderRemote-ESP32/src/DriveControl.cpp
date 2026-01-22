@@ -26,20 +26,23 @@ void DriveControl::forceStop() {
 void DriveControl::apply(MoveDir desiredMove, int desiredSpeed, int speedMin) {
   if (!ws) return;
 
+  // Clamp immer zuerst
+  if (desiredSpeed < speedMin) desiredSpeed = speedMin;
+
+  // Speed IMMER aktualisieren, auch im Stillstand (für nächste Bewegung)
+  if (desiredSpeed != speed) {
+    ws->sendSetSpeed(desiredSpeed);
+    speed = desiredSpeed;
+  }
+
   if (desiredMove == MoveDir::None) {
     if (moving) {
       ws->sendMoveStop();
       moving = false;
       move = MoveDir::None;
+      speed = -1;  // Cache invalidieren - erzwingt setSpeed beim nächsten Start
     }
     return;
-  }
-
-  if (desiredSpeed < speedMin) desiredSpeed = speedMin;
-
-  if (desiredSpeed != speed) {
-    ws->sendSetSpeed(desiredSpeed);
-    speed = desiredSpeed;
   }
 
   if (!moving || desiredMove != move) {
@@ -51,26 +54,19 @@ void DriveControl::apply(MoveDir desiredMove, int desiredSpeed, int speedMin) {
 
 void DriveControl::tick(const InputState& in, int speedMin) {
   MoveDir desiredMove = MoveDir::None;
-  float mag = 0.0f;
 
+  // Priorität: Turn > Joystick Y > Joystick X
   if (in.turn != 0) {
     desiredMove = (in.turn > 0) ? MoveDir::TurnRight : MoveDir::TurnLeft;
-    mag = fabs(in.turn);
   } else if (in.joyX == 0 && in.joyY == 0) {
-    apply(MoveDir::None, 0, speedMin);
+    apply(MoveDir::None, in.speedMax, speedMin);  // Speed auch im Stillstand übergeben
     return;
+  } else if (fabs(in.joyY) >= fabs(in.joyX)) {
+    desiredMove = (in.joyY > 0) ? MoveDir::Forward : MoveDir::Backward;
   } else {
-    if (fabs(in.joyY) >= fabs(in.joyX)) {
-      desiredMove = (in.joyY > 0) ? MoveDir::Forward : MoveDir::Backward;
-      mag = fabs(in.joyY);
-    } else {
-      desiredMove = (in.joyX > 0) ? MoveDir::Right : MoveDir::Left;
-      mag = fabs(in.joyX);
-    }
+    desiredMove = (in.joyX > 0) ? MoveDir::Right : MoveDir::Left;
   }
 
-  int desiredSpeed = int(mag * in.speedMax);
-  if (desiredSpeed > in.speedMax) desiredSpeed = in.speedMax;
-
-  apply(desiredMove, desiredSpeed, speedMin);
+  // Geschwindigkeit kommt NUR vom Poti (in.speedMax), nicht proportional
+  apply(desiredMove, in.speedMax, speedMin);
 }

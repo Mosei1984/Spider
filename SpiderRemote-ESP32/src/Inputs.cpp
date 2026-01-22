@@ -1,9 +1,16 @@
 #include "Inputs.h"
+#include "Config.h"
 
 static inline float clampf(float v, float lo, float hi) {
   if (v < lo) return lo;
   if (v > hi) return hi;
   return v;
+}
+
+static inline float applyDeadzone(float v, float dead) {
+  if (fabsf(v) < dead) return 0.0f;
+  float sign = (v > 0) ? 1.0f : -1.0f;
+  return sign * (fabsf(v) - dead) / (1.0f - dead);
 }
 
 void Inputs::begin(int pinJoyX, int pinJoyY, int pinVmax, int pinTurn, int adcMax_) {
@@ -52,9 +59,13 @@ InputState Inputs::read(float deadJoy, float deadTurn, int speedMin, int speedMa
   s.joyX = normCentered(rawX);
   s.joyY = normCentered(rawY);
 
-  if (fabs(s.turn) < deadTurn) s.turn = 0;
-  if (fabs(s.joyX) < deadJoy)  s.joyX = 0;
-  if (fabs(s.joyY) < deadJoy)  s.joyY = 0;
+  s.turn = applyDeadzone(s.turn, deadTurn);
+  s.joyX = applyDeadzone(s.joyX, deadJoy);
+  s.joyY = applyDeadzone(s.joyY, deadJoy);
+
+  if (INVERT_JOY_X) s.joyX = -s.joyX;
+  if (INVERT_JOY_Y) s.joyY = -s.joyY;
+  if (INVERT_TURN)  s.turn = -s.turn;
 
   return s;
 }
@@ -63,6 +74,11 @@ int Inputs::readSpeedPot(int speedMin, int speedMax_) {
   int rawV = readFiltered(pVmax, bufVmax);
   bufIdx = (bufIdx + 1) % FILTER_SIZE;
   if (bufIdx == 0) bufFilled = true;
+  return mapSpeed(rawV, speedMin, speedMax_);
+}
+
+int Inputs::readSpeedPotRaw(int speedMin, int speedMax_) {
+  int rawV = analogRead(pVmax);
   return mapSpeed(rawV, speedMin, speedMax_);
 }
 
@@ -108,6 +124,10 @@ InputState Inputs::readCalibrated(const InputCalibData& calib, int speedMin, int
   s.joyY = normAxis(rawY, calib.joyY);
   s.turn = normAxis(rawT, calib.turn);
   s.speedMax = normLinear(rawV, calib.vmax, speedMin, speedMax_);
+
+  if (INVERT_JOY_X) s.joyX = -s.joyX;
+  if (INVERT_JOY_Y) s.joyY = -s.joyY;
+  if (INVERT_TURN)  s.turn = -s.turn;
 
   return s;
 }

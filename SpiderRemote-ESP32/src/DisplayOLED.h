@@ -28,4 +28,5 @@ private:
   uint32_t lastMs = 0;
 
   void drawCentered(const char* text, int y);
+  void drawRightAligned(const char* text, int y);
 };

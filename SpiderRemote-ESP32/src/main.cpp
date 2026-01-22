@@ -190,6 +190,10 @@ static void connectWifiWithFallback() {
 void setup() {
   Serial.begin(115200);
 
+  // ADC Konfiguration für 3.3V Bereich
+  analogReadResolution(12);           // 0..4095
+  analogSetAttenuation(ADC_11db);     // ~0..3.3V Bereich
+
   Wire.begin(OLED_SDA, OLED_SCL);
 
   btnLeft.begin(PIN_BTN_LEFT, BTN_DEBOUNCE_MS, BTN_LONGPRESS_MS);
@@ -305,10 +309,11 @@ void loop() {
 
   // ===== INPUT CALIBRATION =====
   InputCalibStep inputCalibStep = inputCalib.getStep();
-  int rawJoyX, rawJoyY, rawTurn, rawVmax;
-  inputs.readRaw(rawJoyX, rawJoyY, rawTurn, rawVmax);
-
+  
+  // Raw-Werte nur im CALIB mode lesen (vermeidet Filter-Interferenz)
   if (uiState.mode == UiMode::CALIB) {
+    int rawJoyX, rawJoyY, rawTurn, rawVmax;
+    inputs.readRaw(rawJoyX, rawJoyY, rawTurn, rawVmax);
     inputCalib.update(rawJoyX, rawJoyY, rawTurn, rawVmax);
   }
 
@@ -397,14 +402,29 @@ void loop() {
 #else
   InputState in = {SPEED_MIN, 0, 0, 0};
   
+  // Speed-Poti IMMER lesen (einheitlich für alle Modes)
+  int speedFromPot = inputs.readSpeedPotRaw(SPEED_MIN, SPEED_MAX);
+  in.speedMax = speedFromPot;
+  
+  // Speed in ALLEN Modi an Spider senden (auch ACTION, TERRAIN, CALIB)
+  static int lastSentSpeed = -1;
+  if (speedFromPot != lastSentSpeed && ws.connected()) {
+    ws.sendSetSpeed(speedFromPot);
+    lastSentSpeed = speedFromPot;
+  }
+  
   if (doDrive) {
     if (uiState.mode == UiMode::MOTION && motion.isAvailable() && motion.isCalibrated()) {
-      int speedMax = inputs.readSpeedPot(SPEED_MIN, SPEED_MAX);
-      in = motion.read(speedMax);
+      // MOTION mode: Gyro für Richtung, Poti für Speed
+      in = motion.read(speedFromPot);
     } else if (inputCalib.isCalibrated()) {
+      // DRIVE mode mit Kalibrierung
       in = inputs.readCalibrated(inputCalib.getData(), SPEED_MIN, SPEED_MAX);
+      in.speedMax = speedFromPot;
     } else {
+      // DRIVE mode ohne Kalibrierung
       in = inputs.read(DEAD_JOY, DEAD_TURN, SPEED_MIN, SPEED_MAX);
+      in.speedMax = speedFromPot;
     }
     drive.tick(in, SPEED_MIN);
   }

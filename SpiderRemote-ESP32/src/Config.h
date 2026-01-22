@@ -20,8 +20,8 @@ static constexpr int OLED_SDA = 21;
 static constexpr int OLED_SCL = 22;
 
 // ========= Analog Pins (ADC1) =========
-static constexpr int PIN_JOY_X    = 34;
-static constexpr int PIN_JOY_Y    = 35;
+static constexpr int PIN_JOY_X    = 35;
+static constexpr int PIN_JOY_Y    = 34;
 static constexpr int PIN_POT_VMAX = 32;
 static constexpr int PIN_POT_TURN = 33;
 
@@ -37,8 +37,13 @@ static constexpr int PIN_BTN_STOP  = 14;
 // ========= Tuning =========
 static constexpr int   ADC_MAX = 4095;
 
-static constexpr float DEAD_JOY  = 0.08f;
-static constexpr float DEAD_TURN = 0.06f;
+static constexpr float DEAD_JOY  = 0.10f;   // Deadband für Joystick X/Y
+static constexpr float DEAD_TURN = 0.15f;   // Deadband für Drehpoti (größer für stabileres Verhalten)
+
+// Joystick/Pot Invertierung (je nach Hardware-Verdrahtung)
+static constexpr bool INVERT_JOY_X   = true;
+static constexpr bool INVERT_JOY_Y   = true;  // Auf true setzen wenn Joystick Y invertiert ist
+static constexpr bool INVERT_TURN    = true;  // Auf true setzen wenn Turn-Poti invertiert ist
 
 static constexpr uint32_t MIN_SEND_INTERVAL_MS = 50;   // matches Web-UI
 static constexpr uint32_t BTN_DEBOUNCE_MS      = 30;

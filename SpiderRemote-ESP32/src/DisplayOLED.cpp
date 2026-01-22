@@ -16,6 +16,11 @@ void DisplayOLED::drawCentered(const char* text, int y) {
   u8g2.drawStr(x, y, text);
 }
 
+void DisplayOLED::drawRightAligned(const char* text, int y) {
+  int w = u8g2.getStrWidth(text);
+  u8g2.drawStr(128 - w, y, text);
+}
+
 void DisplayOLED::tick(bool wsConnected,
                        int vmax,
                        int currentSpeed,
@@ -35,127 +40,157 @@ void DisplayOLED::tick(bool wsConnected,
   u8g2.clearBuffer();
   char buf[32];
 
+  // ===== GYRO CALIBRATION SCREENS (volle Übernahme) =====
   if (calibState == CalibState::WAITING) {
-    u8g2.setFont(u8g2_font_7x13B_tf);
-    drawCentered("KALIBRIERUNG", 16);
     u8g2.setFont(u8g2_font_6x12_tf);
-    drawCentered("Controller flach", 32);
-    drawCentered("auf Tisch legen!", 44);
-    u8g2.setFont(u8g2_font_7x13B_tf);
-    drawCentered("MID druecken", 60);
+    drawCentered("GYRO KALIB.", 12);
+    drawCentered("Controller flach", 28);
+    drawCentered("auf Tisch legen", 40);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    drawCentered("[MID] Start", 58);
     u8g2.sendBuffer();
     return;
   }
 
   if (calibState == CalibState::RUNNING) {
-    u8g2.setFont(u8g2_font_7x13B_tf);
-    drawCentered("KALIBRIERE...", 20);
     u8g2.setFont(u8g2_font_6x12_tf);
-    drawCentered("Nicht bewegen!", 36);
-    u8g2.drawFrame(14, 44, 100, 12);
-    u8g2.drawBox(16, 46, (calibProgress * 96) / 100, 8);
+    drawCentered("KALIBRIERE...", 14);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    drawCentered("Nicht bewegen!", 28);
+    u8g2.drawFrame(14, 34, 100, 10);
+    u8g2.drawBox(16, 36, (calibProgress * 96) / 100, 6);
     snprintf(buf, sizeof(buf), "%d%%", calibProgress);
-    drawCentered(buf, 64);
+    drawCentered(buf, 58);
     u8g2.sendBuffer();
     return;
   }
 
   if (calibState == CalibState::DONE) {
-    u8g2.setFont(u8g2_font_7x13B_tf);
-    drawCentered("FERTIG!", 28);
     u8g2.setFont(u8g2_font_6x12_tf);
-    drawCentered("Gyro-Mode aktiv", 46);
-    drawCentered("Kippen = Steuern", 60);
+    drawCentered("FERTIG!", 24);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    drawCentered("Gyro aktiv", 40);
+    drawCentered("Kippen = Steuern", 52);
     u8g2.sendBuffer();
     return;
   }
 
   if (calibState == CalibState::FAILED) {
-    u8g2.setFont(u8g2_font_7x13B_tf);
-    drawCentered("FEHLER!", 28);
     u8g2.setFont(u8g2_font_6x12_tf);
-    drawCentered("MPU nicht bereit", 46);
+    drawCentered("FEHLER!", 24);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    drawCentered("MPU nicht bereit", 40);
     u8g2.sendBuffer();
     return;
   }
 
-  u8g2.setFont(u8g2_font_6x12_tf);
-  u8g2.drawStr(0, 10, wsConnected ? "WS:OK" : "WS:--");
+  // ===== STATUS BAR (Zeile 1: 0-10px) =====
+  u8g2.setFont(u8g2_font_5x8_tf);
+  u8g2.drawStr(0, 7, wsConnected ? "WS" : "--");
+  
+  snprintf(buf, sizeof(buf), "S:%d", vmax);
+  drawRightAligned(buf, 7);
 
-  snprintf(buf, sizeof(buf), "Vmax:%d Spd:%d", vmax, (currentSpeed < 0 ? 0 : currentSpeed));
-  u8g2.drawStr(54, 10, buf);
+  // Mode in der Mitte der Statuszeile
+  const char* modeName = "";
+  switch (ui.mode) {
+    case UiMode::DRIVE:   modeName = "DRIVE"; break;
+    case UiMode::MOTION:  modeName = "MOTION"; break;
+    case UiMode::CALIB:   modeName = "CALIB"; break;
+    case UiMode::TERRAIN: modeName = "TERRAIN"; break;
+    case UiMode::ACTION:  modeName = "ACTION"; break;
+  }
+  drawCentered(modeName, 7);
 
-  u8g2.setFont(u8g2_font_7x13B_tf);
-  if (ui.mode == UiMode::DRIVE)   drawCentered("DRIVE", 28);
-  if (ui.mode == UiMode::MOTION)  drawCentered("MOTION", 28);
-  if (ui.mode == UiMode::CALIB)   drawCentered("CALIB", 28);
-  if (ui.mode == UiMode::TERRAIN) drawCentered("TERRAIN", 28);
-  if (ui.mode == UiMode::ACTION)  drawCentered("ACTION", 28);
+  // Trennlinie
+  u8g2.drawHLine(0, 9, 128);
 
-  u8g2.setFont(u8g2_font_6x12_tf);
-
+  // ===== CONTENT AREA (12-54px) =====
+  
   if (ui.mode == UiMode::DRIVE) {
-    snprintf(buf, sizeof(buf), "Move: %s", (currentMove && currentMove[0] ? currentMove : "STOP"));
-    u8g2.drawStr(0, 46, buf);
-    snprintf(buf, sizeof(buf), "Terrain: %s", ui.terrainActive);
-    u8g2.drawStr(0, 60, buf);
-
+    u8g2.setFont(u8g2_font_6x12_tf);
+    snprintf(buf, sizeof(buf), "%s", (currentMove && currentMove[0] ? currentMove : "STOP"));
+    drawCentered(buf, 28);
+    
     u8g2.setFont(u8g2_font_5x8_tf);
-    u8g2.drawStr(0, 38, "Hold MID: Menu | STOP: Failsafe");
-  } else if (ui.mode == UiMode::MOTION) {
+    snprintf(buf, sizeof(buf), "Terrain: %s", ui.terrainActive);
+    drawCentered(buf, 42);
+  } 
+  
+  else if (ui.mode == UiMode::MOTION) {
     if (!motionAvailable) {
-      drawCentered("MPU nicht gefunden!", 46);
+      u8g2.setFont(u8g2_font_5x8_tf);
+      drawCentered("MPU nicht gefunden!", 28);
     } else if (!motionCalibrated) {
-      drawCentered("Nicht kalibriert", 40);
       u8g2.setFont(u8g2_font_5x8_tf);
-      u8g2.drawStr(0, 56, "Hold MID: Kalibrieren");
+      drawCentered("Nicht kalibriert", 28);
+      drawCentered("[MID] Kalibrieren", 42);
     } else {
-      snprintf(buf, sizeof(buf), "Move: %s", (currentMove && currentMove[0] ? currentMove : "STOP"));
-      u8g2.drawStr(0, 46, buf);
+      u8g2.setFont(u8g2_font_6x12_tf);
+      snprintf(buf, sizeof(buf), "%s", (currentMove && currentMove[0] ? currentMove : "STOP"));
+      drawCentered(buf, 28);
       u8g2.setFont(u8g2_font_5x8_tf);
-      u8g2.drawStr(0, 38, "Kippen=Steuern | MID=Kalib");
-      u8g2.drawStr(0, 60, "Drehen=Wenden");
+      drawCentered("Kippen=Fahren Drehen=Turn", 42);
     }
-  } else if (ui.mode == UiMode::CALIB) {
+  } 
+  
+  else if (ui.mode == UiMode::CALIB) {
     if (inputCalibStep == InputCalibStep::IDLE) {
-      drawCentered("MID: Start Kalib.", 46);
       u8g2.setFont(u8g2_font_5x8_tf);
-      u8g2.drawStr(0, 60, "Hold MID: naechster Modus");
+      drawCentered("Joystick Kalibrierung", 24);
+      drawCentered("[MID] Start", 38);
     } else if (inputCalibStep == InputCalibStep::DEADBAND) {
+      u8g2.setFont(u8g2_font_6x12_tf);
       snprintf(buf, sizeof(buf), "Deadband: %d%%", deadbandPercent);
-      drawCentered(buf, 42);
+      drawCentered(buf, 28);
       u8g2.setFont(u8g2_font_5x8_tf);
-      u8g2.drawStr(0, 56, "L/R anpassen | MID speichern");
+      drawCentered("[L/R] +/- [MID] OK", 42);
     } else if (inputCalibStep == InputCalibStep::DONE) {
-      drawCentered("Gespeichert!", 46);
+      u8g2.setFont(u8g2_font_6x12_tf);
+      drawCentered("Gespeichert!", 32);
     } else if (inputCalibText) {
-      const char* line1 = inputCalibText;
+      u8g2.setFont(u8g2_font_5x8_tf);
       const char* line2 = strchr(inputCalibText, '\n');
       if (line2) {
-        int len1 = line2 - line1;
+        int len1 = line2 - inputCalibText;
         char tmp[32];
-        strncpy(tmp, line1, len1);
+        if (len1 > 31) len1 = 31;
+        strncpy(tmp, inputCalibText, len1);
         tmp[len1] = '\0';
-        drawCentered(tmp, 42);
-        drawCentered(line2 + 1, 56);
+        drawCentered(tmp, 26);
+        drawCentered(line2 + 1, 38);
       } else {
-        drawCentered(inputCalibText, 48);
+        drawCentered(inputCalibText, 32);
       }
     }
-  } else if (ui.mode == UiMode::TERRAIN) {
+  } 
+  
+  else if (ui.mode == UiMode::TERRAIN) {
+    u8g2.setFont(u8g2_font_5x8_tf);
     snprintf(buf, sizeof(buf), "Aktiv: %s", ui.terrainActive);
-    u8g2.drawStr(0, 40, buf);
+    drawCentered(buf, 22);
+    
+    u8g2.setFont(u8g2_font_6x12_tf);
     snprintf(buf, sizeof(buf), "> %s", TERRAIN_LABELS[ui.terrainIndex]);
-    u8g2.drawStr(0, 56, buf);
+    drawCentered(buf, 38);
+  } 
+  
+  else if (ui.mode == UiMode::ACTION) {
+    u8g2.setFont(u8g2_font_6x12_tf);
+    snprintf(buf, sizeof(buf), "%s", ACTION_LABELS[ui.actionIndex]);
+    drawCentered(buf, 32);
+  }
 
-    u8g2.setFont(u8g2_font_5x8_tf);
-    u8g2.drawStr(0, 38, "L/R waehlen | MID bestaetigen");
-  } else if (ui.mode == UiMode::ACTION) {
-    snprintf(buf, sizeof(buf), "> %s", ACTION_LABELS[ui.actionIndex]);
-    u8g2.drawStr(0, 56, buf);
-
-    u8g2.setFont(u8g2_font_5x8_tf);
-    u8g2.drawStr(0, 38, "L/R waehlen | MID senden");
+  // ===== FOOTER (56-64px) =====
+  u8g2.drawHLine(0, 54, 128);
+  u8g2.setFont(u8g2_font_5x8_tf);
+  
+  if (ui.mode == UiMode::DRIVE || ui.mode == UiMode::MOTION) {
+    drawCentered("[HOLD MID] Menu", 63);
+  } else if (ui.mode == UiMode::TERRAIN || ui.mode == UiMode::ACTION) {
+    drawCentered("[L/R] Wahl [MID] OK", 63);
+  } else if (ui.mode == UiMode::CALIB && inputCalibStep == InputCalibStep::IDLE) {
+    drawCentered("[HOLD MID] Weiter", 63);
   }
 
   u8g2.sendBuffer();

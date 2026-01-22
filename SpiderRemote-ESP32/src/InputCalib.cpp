@@ -1,6 +1,24 @@
 #include "InputCalib.h"
 #include <Preferences.h>
 
+static inline void normalizeAxis(AxisCalib& a) {
+  if (a.rawMin > a.rawMax) {
+    int tmp = a.rawMin; a.rawMin = a.rawMax; a.rawMax = tmp;
+  }
+  if (a.rawCenter < a.rawMin) a.rawCenter = a.rawMin;
+  if (a.rawCenter > a.rawMax) a.rawCenter = a.rawMax;
+}
+
+static inline void ensureJoyTracked(AxisCalib& a, int trackedMin, int trackedMax) {
+  if (trackedMin > trackedMax) {
+    a.rawMin = 0;
+    a.rawMax = 4095;
+  } else {
+    a.rawMin = trackedMin;
+    a.rawMax = trackedMax;
+  }
+}
+
 static Preferences prefs;
 static const char* NVS_NAMESPACE = "inputcalib";
 
@@ -64,7 +82,7 @@ void InputCalib::saveToNVS() {
 
 void InputCalib::startCalibration() {
   tempData_ = InputCalibData();
-  deadbandPercent_ = 5;
+  deadbandPercent_ = 10;  // 10% Deadband als Default (für stabileres Verhalten)
   step_ = InputCalibStep::JOY_CENTER;
 }
 
@@ -101,10 +119,10 @@ void InputCalib::nextStep() {
       break;
 
     case InputCalibStep::JOY_MOVE_ALL:
-      tempData_.joyX.rawMin = trackMinX_;
-      tempData_.joyX.rawMax = trackMaxX_;
-      tempData_.joyY.rawMin = trackMinY_;
-      tempData_.joyY.rawMax = trackMaxY_;
+      ensureJoyTracked(tempData_.joyX, trackMinX_, trackMaxX_);
+      ensureJoyTracked(tempData_.joyY, trackMinY_, trackMaxY_);
+      normalizeAxis(tempData_.joyX);
+      normalizeAxis(tempData_.joyY);
       step_ = InputCalibStep::TURN_MIN;
       break;
 
@@ -121,15 +139,28 @@ void InputCalib::nextStep() {
       break;
 
     case InputCalibStep::VMAX_MAX:
+      normalizeAxis(tempData_.turn);
+      normalizeAxis(tempData_.vmax);
+      normalizeAxis(tempData_.joyX);
+      normalizeAxis(tempData_.joyY);
       applyDeadband();
       step_ = InputCalibStep::DEADBAND;
       break;
 
     case InputCalibStep::DEADBAND:
       step_ = InputCalibStep::SAVING;
+      normalizeAxis(tempData_.turn);
+      normalizeAxis(tempData_.vmax);
+      normalizeAxis(tempData_.joyX);
+      normalizeAxis(tempData_.joyY);
       tempData_.valid = true;
       data_ = tempData_;
       saveToNVS();
+      Serial.printf("[InputCalib] Saved: joyX(%d-%d-%d) joyY(%d-%d-%d) turn(%d-%d-%d) dead=%d%%\n",
+        data_.joyX.rawMin, data_.joyX.rawCenter, data_.joyX.rawMax,
+        data_.joyY.rawMin, data_.joyY.rawCenter, data_.joyY.rawMax,
+        data_.turn.rawMin, data_.turn.rawCenter, data_.turn.rawMax,
+        deadbandPercent_);
       step_ = InputCalibStep::DONE;
       break;
 
