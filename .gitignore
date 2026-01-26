@@ -7,3 +7,9 @@
 # Credentials - NICHT einchecken!
 **/Credentials.h
 !**/Credentials.h.example
+
+# Experimental/WIP directories
+src_v2/
+data_v2/
+SpiderRemote-ESP32/src/v2/
+Spider-pi/
