@@ -195,3 +195,53 @@ void DisplayOLED::tick(bool wsConnected,
 
   u8g2.sendBuffer();
 }
+
+// =============================================================================
+// v3: Einfache 4-Zeilen Anzeige für v3-Menüs
+// =============================================================================
+void DisplayOLED::tickV3(bool wsConnected, int speed,
+                         const char* line1, const char* line2,
+                         const char* line3, const char* line4,
+                         int progressBar) {
+  uint32_t now = millis();
+  if (now - lastMs < updateMs) return;
+  lastMs = now;
+
+  u8g2.clearBuffer();
+  char buf[32];
+
+  // Status Bar (Zeile 1)
+  u8g2.setFont(u8g2_font_5x8_tf);
+  u8g2.drawStr(0, 7, wsConnected ? "WS" : "--");
+  snprintf(buf, sizeof(buf), "S:%d", speed);
+  drawRightAligned(buf, 7);
+  
+  // Trennlinie
+  u8g2.drawHLine(0, 9, 128);
+
+  // Content: 4 Zeilen
+  u8g2.setFont(u8g2_font_6x12_tf);
+  if (line1 && line1[0]) drawCentered(line1, 22);
+  
+  u8g2.setFont(u8g2_font_5x8_tf);
+  if (line2 && line2[0]) drawCentered(line2, 34);
+  
+  // Fortschrittsbalken oder line3
+  if (progressBar >= 0) {
+    // Rahmen
+    u8g2.drawFrame(14, 38, 100, 10);
+    // Füllung
+    int fillWidth = (progressBar * 96) / 100;
+    if (fillWidth > 0) {
+      u8g2.drawBox(16, 40, fillWidth, 6);
+    }
+  } else {
+    if (line3 && line3[0]) drawCentered(line3, 44);
+  }
+  
+  // Footer
+  u8g2.drawHLine(0, 54, 128);
+  if (line4 && line4[0]) drawCentered(line4, 63);
+
+  u8g2.sendBuffer();
+}

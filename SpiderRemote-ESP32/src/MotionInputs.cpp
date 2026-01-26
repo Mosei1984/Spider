@@ -1,6 +1,10 @@
 #include "MotionInputs.h"
 #include "Config.h"
+#include <Preferences.h>
 #include <math.h>
+
+static Preferences mpuPrefs;
+static const char* NVS_NAMESPACE = "mpucalib";
 
 static constexpr uint8_t MPU_ADDR = 0x68;
 static constexpr float ACCEL_SCALE = 16384.0f;  // ±2g
@@ -13,6 +17,7 @@ bool MotionInputs::begin(TwoWire& wire) {
   _available = initMpu();
   if (_available) {
     lastUs = micros();
+    loadFromNVS();
   }
   return _available;
 }
@@ -114,6 +119,7 @@ void MotionInputs::updateCalibration() {
       roll   = 0;
       lastUs = micros();
       _calibrated = true;
+      saveToNVS();
       calibState = CalibState::DONE;
     } else {
       calibState = CalibState::FAILED;
@@ -190,4 +196,27 @@ float MotionInputs::clampf(float val, float lo, float hi) const {
   if (val < lo) return lo;
   if (val > hi) return hi;
   return val;
+}
+
+void MotionInputs::saveToNVS() {
+  mpuPrefs.begin(NVS_NAMESPACE, false);
+  mpuPrefs.putBool("valid", true);
+  mpuPrefs.putFloat("pitch0", pitch0);
+  mpuPrefs.putFloat("roll0", roll0);
+  mpuPrefs.putFloat("gzBias", gzBias);
+  mpuPrefs.end();
+  Serial.printf("[MotionInputs] Saved: pitch0=%.2f roll0=%.2f gzBias=%.2f\n", pitch0, roll0, gzBias);
+}
+
+void MotionInputs::loadFromNVS() {
+  mpuPrefs.begin(NVS_NAMESPACE, true);
+  bool valid = mpuPrefs.getBool("valid", false);
+  if (valid) {
+    pitch0 = mpuPrefs.getFloat("pitch0", 0.0f);
+    roll0  = mpuPrefs.getFloat("roll0", 0.0f);
+    gzBias = mpuPrefs.getFloat("gzBias", 0.0f);
+    _calibrated = true;
+    Serial.printf("[MotionInputs] Loaded: pitch0=%.2f roll0=%.2f gzBias=%.2f\n", pitch0, roll0, gzBias);
+  }
+  mpuPrefs.end();
 }

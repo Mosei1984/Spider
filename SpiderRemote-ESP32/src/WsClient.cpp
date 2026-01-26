@@ -85,13 +85,17 @@ void WsClient::onEventThunk(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void WsClient::onEvent(WStype_t type, uint8_t* payload, size_t length) {
-  (void)payload; (void)length;
   switch (type) {
     case WStype_CONNECTED:
       Serial.println("[WS] Connected");
       break;
     case WStype_DISCONNECTED:
       Serial.println("[WS] Disconnected");
+      break;
+    case WStype_TEXT:
+      if (textCallback && payload && length > 0) {
+        textCallback((const char*)payload);
+      }
       break;
     case WStype_ERROR:
       Serial.println("[WS] Error");

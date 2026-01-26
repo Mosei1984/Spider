@@ -22,6 +22,12 @@ public:
             const char* inputCalibText = nullptr,
             int deadbandPercent = 5);
 
+  // v3: Direkte Anzeige von 4 Textzeilen
+  void tickV3(bool wsConnected, int speed,
+              const char* line1, const char* line2,
+              const char* line3, const char* line4,
+              int progressBar = -1);  // -1 = kein Balken, 0-100 = Fortschritt
+
 private:
   U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
   uint32_t updateMs = 50;

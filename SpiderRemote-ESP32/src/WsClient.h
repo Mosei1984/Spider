@@ -18,8 +18,13 @@ public:
   void sendTerrain(const char* mode);
   
   void sendImmediate(const char* json);  // Bypass rate limiting
+  
+  // Callback für eingehende Nachrichten
+  typedef void (*TextCallback)(const char* json);
+  void setTextCallback(TextCallback cb) { textCallback = cb; }
 
 private:
+  TextCallback textCallback = nullptr;
   WebSocketsClient ws;
   uint32_t minIntervalMs = 50;
   uint32_t lastSendMs = 0;

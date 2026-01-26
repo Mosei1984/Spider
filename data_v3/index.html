@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Spider Control v3</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 10px;
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .status-left {
+            display: flex;
+            align-items: center;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        .status-dot.connected {
+            background: #44ff44;
+            box-shadow: 0 0 8px #44ff44;
+        }
+        .version-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            background: rgba(100,100,255,0.3);
+            border-radius: 4px;
+            color: #aaf;
+        }
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+        .tab-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #888;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: linear-gradient(145deg, #4040a0, #3030a0);
+            color: #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Panels */
+        .panel {
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        h2 {
+            font-size: 15px;
+            margin: 0 0 12px 0;
+            color: #8888ff;
+        }
+        h3 {
+            font-size: 13px;
+            margin: 15px 0 8px 0;
+            color: #88aaff;
+        }
+        /* Buttons */
+        .btn {
+            min-height: 44px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.1s;
+            user-select: none;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* D-Pad */
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            max-width: 260px;
+            margin: 0 auto;
+        }
+        .dpad .btn {
+            height: 65px;
+            background: linear-gradient(145deg, #2d2d5a, #1f1f40);
+            color: #fff;
+            font-size: 22px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        .dpad .btn:active {
+            background: linear-gradient(145deg, #4040a0, #3030a0);
+        }
+        .dpad .empty { background: transparent; box-shadow: none; }
+        .stop-btn {
+            width: 100%;
+            height: 55px;
+            background: linear-gradient(145deg, #cc2020, #aa1010);
+            color: #fff;
+            font-size: 18px;
+            margin: 12px 0;
+            box-shadow: 0 4px 12px rgba(200,0,0,0.4);
+        }
+        /* Actions Grid */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 4px;
+            background: linear-gradient(145deg, #2a4a6a, #1a3a5a);
+            color: #fff;
+            min-height: 65px;
+        }
+        .action-btn .emote { font-size: 24px; margin-bottom: 3px; }
+        .action-btn .label { font-size: 10px; opacity: 0.85; }
+        /* Terrain */
+        .terrain-toggle {
+            display: flex;
+            gap: 8px;
+        }
+        .terrain-btn {
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(145deg, #3a3a5a, #2a2a4a);
+            color: #fff;
+        }
+        .terrain-btn.active {
+            background: linear-gradient(145deg, #5a8a5a, #4a7a4a);
+            box-shadow: 0 0 10px rgba(100,200,100,0.4);
+        }
+        /* Sliders */
+        .slider-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .slider-label { width: 90px; font-size: 12px; color: #aaa; }
+        .slider-value { width: 50px; text-align: right; font-size: 12px; color: #8888ff; font-weight: 600; }
+        input[type="range"] {
+            flex: 1;
+            height: 28px;
+            margin: 0 8px;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(145deg, #6060c0, #4040a0);
+            border-radius: 50%;
+            margin-top: -9px;
+        }
+        /* Walk Params v3 */
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        @media (max-width: 500px) {
+            .param-grid { grid-template-columns: 1fr; }
+        }
+        .param-card {
+            background: rgba(0,0,0,0.25);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .param-title {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .param-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #aaf;
+        }
+        .param-slider {
+            margin-top: 8px;
+        }
+        /* Toggle Buttons */
+        .toggle-group {
+            display: flex;
+            gap: 5px;
+        }
+        .toggle-btn {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+            background: rgba(0,0,0,0.3);
+            color: #888;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .toggle-btn.active {
+            background: linear-gradient(145deg, #4060a0, #3050a0);
+            color: #fff;
+        }
+        /* Servo Calibration v3 */
+        .servo-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .servo-tab {
+            padding: 8px 12px;
+            font-size: 12px;
+            background: rgba(0,0,0,0.3);
+            color: #888;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .servo-tab.active {
+            background: linear-gradient(145deg, #5a4a8a, #4a3a7a);
+            color: #fff;
+        }
+        .servo-detail {
+            background: rgba(0,0,0,0.25);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .servo-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #c6c6ff;
+            margin-bottom: 12px;
+        }
+        .limit-row {
+            display: grid;
+            grid-template-columns: 70px 1fr 50px;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .limit-label { font-size: 12px; color: #aaa; }
+        .limit-input {
+            width: 50px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+            color: #8888ff;
+            font-size: 13px;
+            text-align: center;
+        }
+        /* Buttons Row */
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .btn-row .btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 13px;
+        }
+        .btn-save { background: linear-gradient(145deg, #3a6a3a, #2a5a2a); color: #fff; }
+        .btn-load { background: linear-gradient(145deg, #3a5a6a, #2a4a5a); color: #fff; }
+        .btn-reset { background: linear-gradient(145deg, #6a5a3a, #5a4a2a); color: #fff; }
+        .btn-lock { background: linear-gradient(145deg, #6a3a3a, #5a2a2a); color: #fff; }
+        .btn-lock.unlocked { background: linear-gradient(145deg, #3a6a3a, #2a5a2a); }
+        .btn-shutdown { background: linear-gradient(145deg, #8a2a2a, #6a1a1a); color: #fff; }
+        .btn-calib-pose { background: linear-gradient(145deg, #6a4a8a, #5a3a7a); color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Getrennt</span>
+            </div>
+            <span class="version-badge">v3</span>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="move">🎮 Bewegung</button>
+            <button class="tab-btn" data-tab="walk">⚙️ Walk-Params</button>
+            <button class="tab-btn" data-tab="calib">🔧 Kalibrierung</button>
+            <button class="tab-btn" data-tab="system">🖥️ System</button>
+        </div>
+
+        <!-- Tab: Bewegung -->
+        <div class="tab-content active" id="tab-move">
+            <div class="panel">
+                <h2>Steuerung</h2>
+                <div class="dpad">
+                    <button class="btn" data-cmd="turnLeft">↶</button>
+                    <button class="btn" data-cmd="forward">▲</button>
+                    <button class="btn" data-cmd="turnRight">↷</button>
+                    <button class="btn" data-cmd="left">◀</button>
+                    <div class="btn empty"></div>
+                    <button class="btn" data-cmd="right">▶</button>
+                    <div class="btn empty"></div>
+                    <button class="btn" data-cmd="backward">▼</button>
+                    <div class="btn empty"></div>
+                </div>
+                <button class="btn stop-btn" id="stopBtn">⬛ STOP</button>
+
+                <h3>Geschwindigkeit</h3>
+                <div class="slider-row">
+                    <span class="slider-label">Langsam</span>
+                    <input type="range" min="10" max="100" value="80" id="speedSlider">
+                    <span class="slider-value" id="speedVal">80</span>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Aktionen</h2>
+                <div class="action-grid">
+                    <button class="btn action-btn" data-cmd="standby"><span class="emote">🧍</span><span class="label">Stehen</span></button>
+                    <button class="btn action-btn" data-cmd="sleep"><span class="emote">😴</span><span class="label">Schlafen</span></button>
+                    <button class="btn action-btn" data-cmd="lie"><span class="emote">🛏️</span><span class="label">Hinlegen</span></button>
+                    <button class="btn action-btn" data-cmd="hello"><span class="emote">👋</span><span class="label">Winken</span></button>
+                    <button class="btn action-btn" data-cmd="pushup"><span class="emote">💪</span><span class="label">Liegestütz</span></button>
+                    <button class="btn action-btn" data-cmd="fighting"><span class="emote">🥊</span><span class="label">Kämpfen</span></button>
+                    <button class="btn action-btn" data-cmd="dance1"><span class="emote">💃</span><span class="label">Tanz 1</span></button>
+                    <button class="btn action-btn" data-cmd="dance2"><span class="emote">🕺</span><span class="label">Tanz 2</span></button>
+                    <button class="btn action-btn" data-cmd="dance3"><span class="emote">🎉</span><span class="label">Tanz 3</span></button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Gelände</h2>
+                <div class="terrain-toggle">
+                    <button class="btn terrain-btn active" data-terrain="normal">⬜ Flach</button>
+                    <button class="btn terrain-btn" data-terrain="uphill">⬆ Bergauf</button>
+                    <button class="btn terrain-btn" data-terrain="downhill">⬇ Bergab</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Walk-Params (v3 NEU) -->
+        <div class="tab-content" id="tab-walk">
+            <div class="panel">
+                <h2>Walk-Parameter</h2>
+                <div class="param-grid">
+                    <div class="param-card">
+                        <div class="param-title">Schrittweite (Stride)</div>
+                        <div class="param-value" id="strideVal">1.00</div>
+                        <div class="param-slider">
+                            <input type="range" min="30" max="200" value="100" id="strideSlider" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-title">Substeps</div>
+                        <div class="param-value" id="subStepsVal">8</div>
+                        <div class="param-slider">
+                            <input type="range" min="1" max="16" value="8" id="subStepsSlider" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-title">Swing-Faktor</div>
+                        <div class="param-value" id="swingVal">0.75</div>
+                        <div class="param-slider">
+                            <input type="range" min="30" max="200" value="75" id="swingSlider" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-title">Stance-Faktor</div>
+                        <div class="param-value" id="stanceVal">1.25</div>
+                        <div class="param-slider">
+                            <input type="range" min="30" max="200" value="125" id="stanceSlider" style="width:100%">
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Timing-Profil</h3>
+                <div class="toggle-group">
+                    <button class="toggle-btn" data-profile="0">Linear</button>
+                    <button class="toggle-btn active" data-profile="1">Swing/Stance</button>
+                    <button class="toggle-btn" data-profile="2">Ease</button>
+                </div>
+
+                <h3>Soft-Start (Ramp)</h3>
+                <div class="slider-row">
+                    <span class="slider-label">Ramp Zyklen</span>
+                    <input type="range" min="0" max="10" value="0" id="rampSlider">
+                    <span class="slider-value" id="rampVal">Aus</span>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-save" id="applyWalkParams">✓ Anwenden</button>
+                    <button class="btn btn-reset" id="resetWalkParams">↩ Standard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Kalibrierung (v3 erweitert) -->
+        <div class="tab-content" id="tab-calib">
+            <div class="panel">
+                <h2>Servo-Kalibrierung</h2>
+                
+                <button class="btn btn-calib-pose" id="calibPoseBtn" style="width:100%; margin-bottom:15px;">
+                    📐 Kalibrierungsstellung
+                </button>
+
+                <div class="servo-tabs" id="servoTabs"></div>
+                
+                <div class="servo-detail" id="servoDetail">
+                    <div class="servo-name" id="servoName">Servo 0</div>
+                    
+                    <div class="limit-row">
+                        <span class="limit-label">Offset</span>
+                        <input type="range" min="-30" max="30" value="0" id="offsetSlider">
+                        <input type="number" class="limit-input" min="-30" max="30" value="0" id="offsetInput">
+                    </div>
+                    <div class="limit-row">
+                        <span class="limit-label">Min</span>
+                        <input type="range" min="0" max="90" value="20" id="minSlider">
+                        <input type="number" class="limit-input" min="0" max="90" value="20" id="minInput">
+                    </div>
+                    <div class="limit-row">
+                        <span class="limit-label">Max</span>
+                        <input type="range" min="90" max="180" value="160" id="maxSlider">
+                        <input type="number" class="limit-input" min="90" max="180" value="160" id="maxInput">
+                    </div>
+                    <div class="limit-row">
+                        <span class="limit-label">Center</span>
+                        <input type="range" min="45" max="135" value="90" id="centerSlider">
+                        <input type="number" class="limit-input" min="45" max="135" value="90" id="centerInput">
+                    </div>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-lock" id="lockCalib">🔒 Gesperrt</button>
+                    <button class="btn btn-load" id="loadCalib">📥 Laden</button>
+                    <button class="btn btn-save" id="saveCalib" disabled>💾 Speichern</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: System -->
+        <div class="tab-content" id="tab-system">
+            <div class="panel">
+                <h2>System</h2>
+                <button class="btn btn-shutdown" id="shutdownBtn" style="width:100%; height:50px;">
+                    ⏻ System Shutdown
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // === Servo Definitions ===
+        const SERVOS = [
+            { idx: 0, pin: 'G14', name: 'VR Klaue', type: 'knee' },
+            { idx: 1, pin: 'G12', name: 'VR Schulter', type: 'hip' },
+            { idx: 2, pin: 'G13', name: 'HR Schulter', type: 'hip' },
+            { idx: 3, pin: 'G15', name: 'HR Klaue', type: 'knee' },
+            { idx: 4, pin: 'G16', name: 'VL Klaue', type: 'knee' },
+            { idx: 5, pin: 'G5',  name: 'VL Schulter', type: 'hip' },
+            { idx: 6, pin: 'G4',  name: 'HL Schulter', type: 'hip' },
+            { idx: 7, pin: 'G2',  name: 'HL Klaue', type: 'knee' }
+        ];
+
+        // === State ===
+        let ws = null;
+        let connected = false;
+        let calibLocked = true;
+        let selectedServo = 0;
+        let servoData = SERVOS.map(() => ({ offset: 0, min: 20, max: 160, center: 90 }));
+        let walkParams = { stride: 1.0, subSteps: 8, profile: 1, swingMul: 0.75, stanceMul: 1.25, rampCycles: 0 };
+
+        const MIN_SEND_INTERVAL = 50;
+        let lastSendTime = 0;
+
+        // === DOM Elements ===
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // === Tab Navigation ===
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // === WebSocket ===
+        function connect() {
+            if (ws && ws.readyState < 2) return;
+            try {
+                ws = new WebSocket(`ws://${location.hostname}/ws`);
+                ws.onopen = () => updateStatus(true);
+                ws.onclose = () => { updateStatus(false); setTimeout(connect, 2000); };
+                ws.onerror = () => updateStatus(false);
+                ws.onmessage = handleMessage;
+            } catch (e) { setTimeout(connect, 2000); }
+        }
+
+        function updateStatus(conn) {
+            connected = conn;
+            statusDot.classList.toggle('connected', conn);
+            statusText.textContent = conn ? 'Verbunden' : 'Getrennt';
+        }
+
+        function send(msg) {
+            const now = Date.now();
+            if (now - lastSendTime < MIN_SEND_INTERVAL) return false;
+            if (!ws || ws.readyState !== 1) return false;
+            lastSendTime = now;
+            ws.send(JSON.stringify(msg));
+            return true;
+        }
+
+        function handleMessage(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'calibState') {
+                    if (typeof data.locked === 'boolean') updateCalibLockUI(data.locked);
+                    if (data.offsets) {
+                        data.offsets.forEach((v, i) => { if (servoData[i]) servoData[i].offset = v; });
+                    }
+                    if (data.mins) data.mins.forEach((v, i) => { if (servoData[i]) servoData[i].min = v; });
+                    if (data.maxs) data.maxs.forEach((v, i) => { if (servoData[i]) servoData[i].max = v; });
+                    if (data.centers) data.centers.forEach((v, i) => { if (servoData[i]) servoData[i].center = v; });
+                    updateServoUI();
+                }
+                if (data.type === 'walkParams') {
+                    walkParams = {
+                        stride: data.stride || 1.0,
+                        subSteps: data.subSteps || 8,
+                        profile: data.profile || 1,
+                        swingMul: data.swingMul || 0.75,
+                        stanceMul: data.stanceMul || 1.25,
+                        rampCycles: data.rampCycles || 0
+                    };
+                    updateWalkParamsUI();
+                }
+                if (data.type === 'terrain' && data.mode) updateTerrainButtons(data.mode);
+            } catch (err) {}
+        }
+
+        // === Movement ===
+        document.querySelectorAll('.dpad [data-cmd]').forEach(btn => {
+            const cmd = btn.dataset.cmd;
+            btn.addEventListener('pointerdown', e => { e.preventDefault(); send({ type: 'moveStart', name: cmd }); });
+            btn.addEventListener('pointerup', e => { e.preventDefault(); send({ type: 'moveStop' }); });
+            btn.addEventListener('pointerleave', e => { e.preventDefault(); send({ type: 'moveStop' }); });
+        });
+
+        document.querySelectorAll('.action-btn[data-cmd]').forEach(btn => {
+            btn.addEventListener('pointerdown', e => { e.preventDefault(); send({ type: 'cmd', name: btn.dataset.cmd }); });
+        });
+
+        document.getElementById('stopBtn').addEventListener('pointerdown', e => { e.preventDefault(); send({ type: 'stop' }); });
+
+        // Speed
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+        speedSlider.addEventListener('input', () => {
+            speedVal.textContent = speedSlider.value;
+            send({ type: 'setSpeed', speed: parseInt(speedSlider.value) });
+        });
+
+        // Terrain
+        function updateTerrainButtons(mode) {
+            document.querySelectorAll('.terrain-btn').forEach(b => b.classList.toggle('active', b.dataset.terrain === mode));
+        }
+        document.querySelectorAll('.terrain-btn').forEach(btn => {
+            btn.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                send({ type: 'setTerrain', mode: btn.dataset.terrain });
+                updateTerrainButtons(btn.dataset.terrain);
+            });
+        });
+
+        // === Walk Params (v3) ===
+        function updateWalkParamsUI() {
+            document.getElementById('strideSlider').value = walkParams.stride * 100;
+            document.getElementById('strideVal').textContent = walkParams.stride.toFixed(2);
+            document.getElementById('subStepsSlider').value = walkParams.subSteps;
+            document.getElementById('subStepsVal').textContent = walkParams.subSteps;
+            document.getElementById('swingSlider').value = walkParams.swingMul * 100;
+            document.getElementById('swingVal').textContent = walkParams.swingMul.toFixed(2);
+            document.getElementById('stanceSlider').value = walkParams.stanceMul * 100;
+            document.getElementById('stanceVal').textContent = walkParams.stanceMul.toFixed(2);
+            document.getElementById('rampSlider').value = walkParams.rampCycles;
+            document.getElementById('rampVal').textContent = walkParams.rampCycles > 0 ? walkParams.rampCycles : 'Aus';
+            document.querySelectorAll('[data-profile]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.profile) === walkParams.profile));
+        }
+
+        document.getElementById('strideSlider').addEventListener('input', e => {
+            walkParams.stride = parseInt(e.target.value) / 100;
+            document.getElementById('strideVal').textContent = walkParams.stride.toFixed(2);
+        });
+        document.getElementById('subStepsSlider').addEventListener('input', e => {
+            walkParams.subSteps = parseInt(e.target.value);
+            document.getElementById('subStepsVal').textContent = walkParams.subSteps;
+        });
+        document.getElementById('swingSlider').addEventListener('input', e => {
+            walkParams.swingMul = parseInt(e.target.value) / 100;
+            document.getElementById('swingVal').textContent = walkParams.swingMul.toFixed(2);
+        });
+        document.getElementById('stanceSlider').addEventListener('input', e => {
+            walkParams.stanceMul = parseInt(e.target.value) / 100;
+            document.getElementById('stanceVal').textContent = walkParams.stanceMul.toFixed(2);
+        });
+        document.getElementById('rampSlider').addEventListener('input', e => {
+            walkParams.rampCycles = parseInt(e.target.value);
+            document.getElementById('rampVal').textContent = walkParams.rampCycles > 0 ? walkParams.rampCycles : 'Aus';
+        });
+
+        document.querySelectorAll('[data-profile]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                walkParams.profile = parseInt(btn.dataset.profile);
+                document.querySelectorAll('[data-profile]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.profile) === walkParams.profile));
+            });
+        });
+
+        document.getElementById('applyWalkParams').addEventListener('click', () => {
+            send({
+                type: 'setWalkParams',
+                stride: walkParams.stride,
+                subSteps: walkParams.subSteps,
+                profile: walkParams.profile,
+                swingMul: walkParams.swingMul,
+                stanceMul: walkParams.stanceMul,
+                rampEnabled: walkParams.rampCycles > 0,
+                rampCycles: walkParams.rampCycles
+            });
+        });
+
+        document.getElementById('resetWalkParams').addEventListener('click', () => {
+            walkParams = { stride: 1.0, subSteps: 8, profile: 1, swingMul: 0.75, stanceMul: 1.25, rampCycles: 0 };
+            updateWalkParamsUI();
+        });
+
+        // === Servo Calibration (v3) ===
+        const servoTabsEl = document.getElementById('servoTabs');
+        SERVOS.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = 'servo-tab' + (s.idx === 0 ? ' active' : '');
+            btn.textContent = s.idx;
+            btn.dataset.idx = s.idx;
+            btn.addEventListener('click', () => selectServo(s.idx));
+            servoTabsEl.appendChild(btn);
+        });
+
+        function selectServo(idx) {
+            selectedServo = idx;
+            document.querySelectorAll('.servo-tab').forEach(b => b.classList.toggle('active', parseInt(b.dataset.idx) === idx));
+            updateServoUI();
+        }
+
+        function updateServoUI() {
+            const s = SERVOS[selectedServo];
+            const d = servoData[selectedServo];
+            document.getElementById('servoName').textContent = `${s.name} (${s.pin})`;
+            document.getElementById('offsetSlider').value = d.offset;
+            document.getElementById('offsetInput').value = d.offset;
+            document.getElementById('minSlider').value = d.min;
+            document.getElementById('minInput').value = d.min;
+            document.getElementById('maxSlider').value = d.max;
+            document.getElementById('maxInput').value = d.max;
+            document.getElementById('centerSlider').value = d.center;
+            document.getElementById('centerInput').value = d.center;
+        }
+
+        function syncCalibInput(sliderId, inputId, field) {
+            const slider = document.getElementById(sliderId);
+            const input = document.getElementById(inputId);
+            const update = (val) => {
+                servoData[selectedServo][field] = parseInt(val);
+                slider.value = val;
+                input.value = val;
+                if (!calibLocked) {
+                    send({ type: 'setServoCalib', servo: selectedServo, ...servoData[selectedServo] });
+                }
+            };
+            slider.addEventListener('input', () => update(slider.value));
+            input.addEventListener('input', () => update(input.value));
+        }
+        syncCalibInput('offsetSlider', 'offsetInput', 'offset');
+        syncCalibInput('minSlider', 'minInput', 'min');
+        syncCalibInput('maxSlider', 'maxInput', 'max');
+        syncCalibInput('centerSlider', 'centerInput', 'center');
+
+        function updateCalibLockUI(locked) {
+            calibLocked = locked;
+            const lockBtn = document.getElementById('lockCalib');
+            lockBtn.textContent = locked ? '🔒 Gesperrt' : '🔓 Entsperrt';
+            lockBtn.classList.toggle('unlocked', !locked);
+            document.getElementById('saveCalib').disabled = locked;
+            document.querySelectorAll('#tab-calib input').forEach(i => i.disabled = locked);
+            document.getElementById('calibPoseBtn').disabled = false; // Always enabled
+        }
+
+        document.getElementById('lockCalib').addEventListener('click', () => send({ type: 'setCalibLock', locked: !calibLocked }));
+        document.getElementById('loadCalib').addEventListener('click', () => send({ type: 'loadCalib' }));
+        document.getElementById('saveCalib').addEventListener('click', () => send({ type: 'saveCalib' }));
+        document.getElementById('calibPoseBtn').addEventListener('click', () => send({ type: 'cmd', name: 'calibpose' }));
+
+        // === System ===
+        document.getElementById('shutdownBtn').addEventListener('click', () => {
+            if (confirm('System wirklich herunterfahren?')) {
+                send({ type: 'shutdown' });
+                statusText.textContent = 'Shutdown...';
+            }
+        });
+
+        // === Init ===
+        updateWalkParamsUI();
+        updateServoUI();
+        updateCalibLockUI(true);
+        connect();
+    })();
+    </script>
+</body>
+</html>

@@ -19,6 +19,9 @@ public:
   CalibState getCalibState() const;
   int getCalibProgress() const;
 
+  void saveToNVS();
+  void loadFromNVS();
+
 private:
   TwoWire* _wire = nullptr;
   bool _available = false;
